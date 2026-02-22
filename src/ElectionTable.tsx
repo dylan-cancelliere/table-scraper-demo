@@ -1,4 +1,4 @@
-import { Table } from "@mantine/core";
+import { Table, type TableProps } from "@mantine/core";
 import { numberWithCommas } from "./util";
 
 export type ElectionDataRow = {
@@ -9,9 +9,9 @@ export type ElectionDataRow = {
   lid: number;
   bnm: string; // Candidate
   dtx: unknown;
-  pty: string;
-  vct: number;
-  pct: number;
+  pty: string; // Party
+  vct: number; // Vote count
+  pct: number; // Vote percentage
   prt: number;
   ptl: number;
   evc: number;
@@ -23,7 +23,13 @@ export type ElectionDataRow = {
   ref: number;
 };
 
-export const ElectionTable = ({ data }: { data: ElectionDataRow[] }) => {
+export const ElectionTable = ({
+  data,
+  tableProps,
+}: {
+  data: ElectionDataRow[];
+  tableProps?: TableProps;
+}) => {
   const rows = data.map((r) => {
     return (
       <Table.Tr key={r["cnm"] + r["bnm"]}>
@@ -41,7 +47,7 @@ export const ElectionTable = ({ data }: { data: ElectionDataRow[] }) => {
   });
 
   return (
-    <Table ta="left" tabularNums striped>
+    <Table ta="left" tabularNums striped {...tableProps}>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Election</Table.Th>

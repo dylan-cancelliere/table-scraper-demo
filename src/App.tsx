@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import "@mantine/core/styles.css";
+
 import {
+  ActionIcon,
   Button,
+  Code,
+  CopyButton,
+  Group,
   Loader,
   LoadingOverlay,
   Select,
   Stack,
+  Text,
   Title,
 } from "@mantine/core";
-import { deleteWithinParens, formatRaceNames, titlecase } from "./util";
+import { filterElectionData, parseElectionData, titlecase } from "./util";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { ElectionTable } from "./ElectionTable";
+import { IconCheck, IconCopy } from "@tabler/icons-react";
 
 type ElectionDataRow = {
   cid: number;
@@ -50,33 +56,6 @@ type County = {
   vwp: string;
 };
 
-function parseData(data: { [key: string]: string }[]): ElectionDataRow[] {
-  return data.map((row) => ({
-    cid: parseInt(row["cid"]),
-    cnm: formatRaceNames(titlecase(deleteWithinParens(titlecase(row["cnm"])))),
-    vfr: parseInt(row["vfr"]),
-    gid: parseInt(row["gid"]),
-    lid: parseInt(row["lid"]),
-    bnm: row["bnm"]
-      .replaceAll("(Miscellaneous)", "")
-      .replaceAll("(Write-In)", "")
-      .trim(),
-    dtx: row["dtx"],
-    pty: row["pty"],
-    vct: parseInt(row["vct"]),
-    pct: parseFloat(row["pct"]),
-    prt: parseInt(row["prt"]),
-    ptl: parseInt(row["ptl"]),
-    evc: parseInt(row["evc"]),
-    ovc: parseInt(row["ovc"]),
-    avc: parseInt(row["avc"]),
-    pvc: parseInt(row["pvc"]),
-    col: row["col"],
-    ogl: row["ogl"],
-    ref: parseInt(row["ref"]),
-  }));
-}
-
 function App() {
   const [countyIndex, setCountyIndex] = useState<number>();
 
@@ -99,13 +78,14 @@ function App() {
           if (!res.ok) throw new Error(res.statusText);
           return res.json();
         })
-        .then(parseData),
+        .then(parseElectionData),
     enabled: !electionQueryDisabled,
   });
 
   const [candidateSearch, setCandidateSearch] = useState<string | null>(null);
   const [electionSearch, setElectionSearch] = useState<string | null>(null);
   const [results, setResults] = useState<ElectionDataRow[]>();
+  const [liveLink, setLiveLink] = useState<string>();
 
   useEffect(() => {
     console.log("RESULTS", results);
@@ -119,7 +99,7 @@ function App() {
           <Select
             label="Pick county/state"
             data={countyQuery.data.map((c, idx) => ({
-              label: c.cnm,
+              label: titlecase(c.cnm),
               value: idx.toString(),
             }))}
             searchable
@@ -171,30 +151,54 @@ function App() {
           <Button
             loading={electionQuery.isLoading}
             type="submit"
+            disabled={electionQueryDisabled}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
 
-              let res = electionQuery.data;
-              if (res == undefined) return;
-              if (candidateSearch?.trim())
-                res = res.filter((it) =>
-                  it["bnm"]
-                    .toLowerCase()
-                    .includes(candidateSearch.trim().toLowerCase()),
-                );
-              if (electionSearch?.trim())
-                res = res.filter((it) =>
-                  it["cnm"]
-                    .toLowerCase()
-                    .includes(electionSearch.trim().toLowerCase()),
-                );
-              setResults(res);
+              setLiveLink(undefined);
+
+              setResults(
+                filterElectionData({
+                  electionData: electionQuery.data ?? [],
+                  electionSearch: electionSearch ?? "",
+                  candidateSearch: candidateSearch ?? "",
+                }),
+              );
             }}
           >
             Search
           </Button>
-          <Button color="green">Generate </Button>
+          {results?.length && (
+            <Button
+              color="green"
+              onClick={() =>
+                setLiveLink(
+                  encodeURI(
+                    `http://localhost:5173/table?countyIndex=${countyIndex}&electionSearch=${electionSearch}&candidateSearch=${candidateSearch}`,
+                  ),
+                )
+              }
+            >
+              Generate Table View (Live Data)
+            </Button>
+          )}
+          {liveLink && (
+            <CopyButton value={liveLink}>
+              {({ copied, copy }) => (
+                <>
+                  <Code>
+                    <Group wrap="nowrap">
+                      <Text lineClamp={1}>{liveLink}</Text>
+                      <ActionIcon variant="transparent" onClick={copy}>
+                        {copied ? <IconCheck /> : <IconCopy size={16} />}
+                      </ActionIcon>
+                    </Group>
+                  </Code>
+                </>
+              )}
+            </CopyButton>
+          )}
         </Stack>
       </form>
       {results && (

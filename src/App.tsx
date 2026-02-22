@@ -1,19 +1,27 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
 import "./App.css";
 import "@mantine/core/styles.css";
-import { Button, Loader, Select, Stack, Table, Title } from "@mantine/core";
-import { numberWithCommas, deleteWithinParens, titlecase } from "./util";
+import {
+  Button,
+  Loader,
+  LoadingOverlay,
+  Select,
+  Stack,
+  Title,
+} from "@mantine/core";
+import { deleteWithinParens, formatRaceNames, titlecase } from "./util";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { ElectionTable } from "./ElectionTable";
 
 type ElectionDataRow = {
   cid: number;
-  cnm: string;
+  cnm: string; // Race
   vfr: number;
   gid: number;
   lid: number;
-  bnm: string;
+  bnm: string; // Candidate
   dtx: unknown;
-  pty: unknown;
+  pty: string;
   vct: number;
   pct: number;
   prt: number;
@@ -27,14 +35,32 @@ type ElectionDataRow = {
   ref: number;
 };
 
+type County = {
+  bct: number;
+  bpt: string;
+  cid: number;
+  cnm: string;
+  imp: string;
+  ppt: string;
+  prt: number;
+  ptl: number;
+  rtl: number;
+  sub: string;
+  tle: string;
+  vwp: string;
+};
+
 function parseData(data: { [key: string]: string }[]): ElectionDataRow[] {
   return data.map((row) => ({
     cid: parseInt(row["cid"]),
-    cnm: deleteWithinParens(titlecase(row["cnm"])),
+    cnm: formatRaceNames(titlecase(deleteWithinParens(titlecase(row["cnm"])))),
     vfr: parseInt(row["vfr"]),
     gid: parseInt(row["gid"]),
     lid: parseInt(row["lid"]),
-    bnm: row["bnm"],
+    bnm: row["bnm"]
+      .replaceAll("(Miscellaneous)", "")
+      .replaceAll("(Write-In)", "")
+      .trim(),
     dtx: row["dtx"],
     pty: row["pty"],
     vct: parseInt(row["vct"]),
@@ -51,84 +77,78 @@ function parseData(data: { [key: string]: string }[]): ElectionDataRow[] {
   }));
 }
 
-const ElectionTable = ({ data }: { data: ElectionDataRow[] }) => {
-  const rows = data.map((r) => {
-    return (
-      <Table.Tr key={r["cnm"] + r["vct"]}>
-        <Table.Td>{r.cnm}</Table.Td>
-        <Table.Td>{r["bnm"]}</Table.Td>
-        <Table.Td>{numberWithCommas(r["vct"])}</Table.Td>
-        <Table.Td>{`${(r["pct"] * 100).toFixed(1)}%`}</Table.Td>
-      </Table.Tr>
-    );
+function App() {
+  const [countyIndex, setCountyIndex] = useState<number>();
+
+  const countyQuery = useSuspenseQuery<County[]>({
+    queryKey: ["counties"],
+    queryFn: () =>
+      fetch("https://er.ncsbe.gov/enr/20260303/data/county.txt").then((res) =>
+        res.json(),
+      ),
   });
 
-  return (
-    <Table ta="left" tabularNums>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Election</Table.Th>
-          <Table.Th>Candidate</Table.Th>
-          <Table.Th>Vote Count</Table.Th>
-          <Table.Th>Percentage</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>{rows}</Table.Tbody>
-    </Table>
-  );
-};
-
-function App() {
-  const [isLoading, setIsLoading] = useState<boolean | ElectionDataRow[]>(true);
-
-  async function recurse(
-    index: number,
-    accumulator: { [keys: string]: string }[],
-  ) {
-    const url = `https://er.ncsbe.gov/enr/20251104/data/results_${index}.txt`;
-    const data = await fetch(url).then((res) => {
-      if (!res.ok) return false;
-      return res.json();
-    });
-
-    if (data == false) return accumulator;
-    return recurse(index + 1, accumulator.concat(data));
-  }
-
-  useEffect(() => {
-    recurse(0, []).then((data) => setIsLoading(parseData(data)));
-  }, []);
+  const electionQueryDisabled = countyIndex == undefined;
+  const electionQuery = useQuery<ElectionDataRow[]>({
+    queryKey: ["election", countyIndex],
+    queryFn: () =>
+      fetch(
+        `https://er.ncsbe.gov/enr/20260303/data/results_${countyIndex}.txt?v=22-14-57`,
+      )
+        .then((res) => {
+          if (!res.ok) throw new Error(res.statusText);
+          return res.json();
+        })
+        .then(parseData),
+    enabled: !electionQueryDisabled,
+  });
 
   const [candidateSearch, setCandidateSearch] = useState<string | null>(null);
   const [electionSearch, setElectionSearch] = useState<string | null>(null);
   const [results, setResults] = useState<ElectionDataRow[]>();
 
+  useEffect(() => {
+    console.log("RESULTS", results);
+  }, [results]);
+
   return (
     <Stack mt="xl">
       <form>
         <Stack maw={400} mx="auto">
-          <Title order={1} size="h5">
+          <Title order={1}>Election Table Generator</Title>
+          <Select
+            label="Pick county/state"
+            data={countyQuery.data.map((c, idx) => ({
+              label: c.cnm,
+              value: idx.toString(),
+            }))}
+            searchable
+            placeholder="Select a county or state-wide"
+            clearable
+            onChange={(idx) =>
+              setCountyIndex(idx != null ? parseInt(idx) : undefined)
+            }
+          />
+          <Title order={2} size="h5">
             Enter one or both
           </Title>
           <Select
             label="Candidate Name"
             onChange={(c) => setCandidateSearch(c)}
             data={
-              typeof isLoading == "boolean"
+              electionQuery.data == undefined
                 ? []
                 : Array.from(
                     new Set(
-                      isLoading.map((it) => {
-                        return it.bnm
-                          .replaceAll("(Miscellaneous)", "")
-                          .replaceAll("(Write-In)", "")
-                          .trim();
+                      electionQuery.data.map((it) => {
+                        return it.bnm;
                       }),
                     ),
                   )
             }
-            placeholder="Pick an Election"
-            rightSection={isLoading == true ? <Loader /> : null}
+            placeholder="Pick a candidate"
+            rightSection={electionQuery.isLoading ? <Loader size={16} /> : null}
+            disabled={electionQueryDisabled}
             searchable
             clearable
           />
@@ -136,24 +156,27 @@ function App() {
             label="Election Name"
             onChange={(e) => setElectionSearch(e)}
             data={
-              typeof isLoading == "boolean"
+              electionQuery.data == undefined
                 ? []
-                : Array.from(new Set(isLoading.map((it) => it.cnm)))
+                : Array.from(new Set(electionQuery.data.map((it) => it.cnm)))
             }
-            placeholder="Pick an Election"
-            rightSection={isLoading == true ? <Loader /> : null}
+            placeholder="Pick an election"
+            rightSection={
+              electionQuery.isLoading == true ? <Loader size={16} /> : null
+            }
+            disabled={electionQueryDisabled}
             searchable
             clearable
           />
           <Button
-            loading={isLoading == true}
+            loading={electionQuery.isLoading}
             type="submit"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
 
-              let res = isLoading;
-              if (typeof res == "boolean") return;
+              let res = electionQuery.data;
+              if (res == undefined) return;
               if (candidateSearch?.trim())
                 res = res.filter((it) =>
                   it["bnm"]
@@ -171,6 +194,7 @@ function App() {
           >
             Search
           </Button>
+          <Button color="green">Generate </Button>
         </Stack>
       </form>
       {results && (
@@ -179,6 +203,7 @@ function App() {
             Results:
           </Title>
           <Stack mx="auto">
+            <LoadingOverlay visible={electionQuery.isLoading} />
             <ElectionTable data={results} />
           </Stack>
         </>
@@ -188,27 +213,3 @@ function App() {
 }
 
 export default App;
-
-/*
-
-"cid": "0",
-		"cnm": "CITY OF DURHAM MAYOR (VOTE FOR 1)",
-		"vfr": "1",
-		"gid": "320005",
-		"lid": "320005",
-		"bnm": "Anjanee Bell",
-		"dtx": "",
-		"pty": " ",
-		"vct": "19290",
-		"pct": "0.4205",
-		"prt": "61",
-		"ptl": "61",
-		"evc": "13180",
-		"ovc": "5687",
-		"avc": "142",
-		"pvc": "281",
-		"col": "FA6900",
-		"ogl": "CCL",
-		"ref": "0"
-
-*/

@@ -1,8 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ElectionTable, type ElectionDataRow } from "../ElectionTable";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { filterElectionData, parseElectionData } from "../util";
-import { Stack } from "@mantine/core";
+import { filterElectionData, insertBetween, parseElectionData } from "../util";
+import { Divider, Stack } from "@mantine/core";
+
+export const GroupedTables = (props: { data: ElectionDataRow[] }) => {
+  const filteredData = Object.groupBy(props.data, ({ cnm }) => cnm);
+
+  const tables = Object.entries(filteredData).map(([key, value]) => (
+    <ElectionTable data={value ?? []} title={key} />
+  ));
+
+  return (
+    <Stack w="100vw">
+      <Stack m="lg">{insertBetween(<Divider my="xs" mx="xs" />, tables)}</Stack>
+    </Stack>
+  );
+};
 
 const TableContainer = () => {
   const { countyIndex, electionSearch, candidateSearch } = Route.useSearch();
@@ -21,15 +35,13 @@ const TableContainer = () => {
   });
 
   return (
-    <Stack w="100vw" mx="auto">
-      <ElectionTable
-        data={filterElectionData({
-          electionData: electionQuery.data,
-          electionSearch: electionSearch ?? "",
-          candidateSearch: candidateSearch ?? "",
-        })}
-      />
-    </Stack>
+    <GroupedTables
+      data={filterElectionData({
+        electionData: electionQuery.data,
+        electionSearch: electionSearch ?? "",
+        candidateSearch: candidateSearch ?? "",
+      })}
+    />
   );
 };
 

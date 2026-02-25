@@ -1,4 +1,4 @@
-import { Table, type TableProps } from "@mantine/core";
+import { Stack, Table, Title, type TableProps } from "@mantine/core";
 import { numberWithCommas } from "./util";
 
 export type ElectionDataRow = {
@@ -24,16 +24,17 @@ export type ElectionDataRow = {
 };
 
 export const ElectionTable = ({
+  title,
   data,
   tableProps,
 }: {
+  title: string;
   data: ElectionDataRow[];
   tableProps?: TableProps;
 }) => {
   const rows = data.map((r) => {
     return (
       <Table.Tr key={r["cnm"] + r["bnm"]}>
-        <Table.Td>{r.cnm}</Table.Td>
         <Table.Td>{r["bnm"]}</Table.Td>
         <Table.Td>
           {r["pty"]
@@ -47,17 +48,21 @@ export const ElectionTable = ({
   });
 
   return (
-    <Table ta="left" tabularNums striped {...tableProps}>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Election</Table.Th>
-          <Table.Th>Candidate</Table.Th>
-          <Table.Th>Party</Table.Th>
-          <Table.Th>Vote Count</Table.Th>
-          <Table.Th>Percentage</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>{rows}</Table.Tbody>
-    </Table>
+    <Stack>
+      <Title order={1} ff="serif">
+        {title}
+      </Title>
+      <Table ta="left" tabularNums striped {...tableProps}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Candidate</Table.Th>
+            <Table.Th>Party</Table.Th>
+            <Table.Th>Vote Count</Table.Th>
+            <Table.Th>Percentage</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
+      </Table>
+    </Stack>
   );
 };

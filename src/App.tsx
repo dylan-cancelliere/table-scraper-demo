@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./App.css";
 
 import {
@@ -16,30 +16,9 @@ import {
 } from "@mantine/core";
 import { filterElectionData, parseElectionData, titlecase } from "./util";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { ElectionTable } from "./ElectionTable";
+import { type ElectionDataRow } from "./ElectionTable";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
-
-type ElectionDataRow = {
-  cid: number;
-  cnm: string; // Race
-  vfr: number;
-  gid: number;
-  lid: number;
-  bnm: string; // Candidate
-  dtx: unknown;
-  pty: string;
-  vct: number;
-  pct: number;
-  prt: number;
-  ptl: number;
-  evc: number;
-  ovc: number;
-  avc: number;
-  pvc: number;
-  col: string;
-  ogl: string;
-  ref: number;
-};
+import { GroupedTables } from "./routes/table";
 
 type County = {
   bct: number;
@@ -86,10 +65,6 @@ function App() {
   const [electionSearch, setElectionSearch] = useState<string | null>(null);
   const [results, setResults] = useState<ElectionDataRow[]>();
   const [liveLink, setLiveLink] = useState<string>();
-
-  useEffect(() => {
-    console.log("RESULTS", results);
-  }, [results]);
 
   return (
     <Stack mt="xl">
@@ -208,7 +183,7 @@ function App() {
           </Title>
           <Stack mx="auto">
             <LoadingOverlay visible={electionQuery.isLoading} />
-            <ElectionTable data={results} />
+            <GroupedTables data={results} />
           </Stack>
         </>
       )}

@@ -10,6 +10,10 @@ export function titlecase(s: string) {
     .join(" ");
 }
 
+export function insertBetween<T>(ele: T, arr: T[]) {
+  return arr.flatMap((x) => [ele, x]).slice(1);
+}
+
 export function numberWithCommas(x: number) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
